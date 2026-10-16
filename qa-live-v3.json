@@ -1,0 +1,47 @@
+{
+  "version": 3,
+  "date": "2026-10-16",
+  "environment": "Windows; Minecraft Java 26.3; Space Engineers 1.210.014; dedicated offline cloned worlds",
+  "status": "passed_with_documented_verification_limits",
+  "catalog": {
+    "minecraftItems": 1657,
+    "spaceEngineersPhysicalItems": 173,
+    "totalItems": 1830,
+    "importedRecipes": 3611,
+    "ordinaryMinecraftCraftingRecipes": 1242,
+    "spaceEngineersMaterialBlueprintsIncludingComponentBundles": 1569,
+    "note": "Other imported Minecraft recipe families remain explicitly unsupported by this workshop. No per-item recipe list was added."
+  },
+  "automatedNativeChecks": {
+    "minecraftAssertions": 58,
+    "spaceEngineersPlannerAssertions": 20,
+    "liveSuite": "qa-live-v3-tests.json",
+    "liveSuitePassed": 8,
+    "uiAudits": ["container close acknowledgement", "exact stack callbacks", "confirmed selection only", "ingredient aggregation", "registry icon resolution"]
+  },
+  "integrationChecks": [
+    {"name": "SE to Minecraft crafting", "result": "passed", "evidence": "3 native SE iron ingots consumed; 1 native MC bucket added"},
+    {"name": "Cold restart during cross-engine craft", "result": "passed", "evidence": "21 MC iron consumed for 1 SE steel plate; both engines saved and exited at grant stage; full restart produced exactly 1 plate; later full restart still retained exactly 1 plate"},
+    {"name": "Durable receipt replay after restart", "result": "passed", "evidence": "Replaying the earlier 21-iron creative grant returned committed; current iron quantity remained 18, not 39"},
+    {"name": "Mixed ingredients in SE output", "result": "passed", "evidence": "Final build consumed 18 MC iron and 3 SE iron together for 1 new native SE steel plate; total plates became 2"},
+    {"name": "Mouse-driven in-game crafting", "result": "passed", "evidence": "Searched native workshop, selected Oak Planks and clicked craft once; logs 62 to 61, planks 8 to 12"},
+    {"name": "Previously unlisted block", "result": "passed", "evidence": "Cherry Planks discovered at dynamic index 267; placement count 12 to 11 and native block created; breaking restored count 12 and removed only the temporary block"},
+    {"name": "Crafting table handoff", "result": "passed", "evidence": "Shared interaction handler opened native MC crafting table, received native close acknowledgement and opened unified crafting screen; MC menu confirmed closed"},
+    {"name": "Actual native SE tool", "result": "passed", "evidence": "Selecting owned Hand Drill equipped MyHandDrill and disabled MC editing; selecting MC planks restored MC editing and unequipped the SE tool"},
+    {"name": "Unowned selection", "result": "passed", "evidence": "Selecting absent diamond block left both native held Cherry Planks and HUD unchanged; inventory hash unchanged"},
+    {"name": "Exact component-bearing stack selection", "result": "passed", "evidence": "Two diamond axes with different names and damage values 17 and 3 were selected through separate stack references; native held hash matched each requested stack"},
+    {"name": "Stale exact stack selection", "result": "passed", "evidence": "Invalid stack hash rejected before inventory mutation"},
+    {"name": "Visual interface", "result": "passed", "evidence": "Native SE inventory and crafting screens visually inspected; MC and SE icons/counts shown together; native textbox filtering and mouse crafting exercised"}
+  ],
+  "performance": {
+    "inventoryRefreshBeforeOptimizationMs": [195, 208],
+    "observedSteadyInventoryRefreshAfterOptimizationMs": [6, 9],
+    "note": "Observed samples on this machine, not a benchmark guarantee. Initial catalog construction has a higher one-time cost."
+  },
+  "verificationLimits": [
+    "Automation-injected world hotkeys were not accepted by the native game, including its own Escape. Textbox key events and mouse controls worked. I/G/Shift+I bindings were reviewed in code; physical keyboard presses were not independently observed.",
+    "Cold recovery used explicit native saves and graceful process exits at a deliberately paused transaction stage. This is not a power-loss or disk-corruption test.",
+    "Capacity and component conservation were tested with native item codecs and inventory merge routines; no full live inventory reset or destructive capacity fixture was used.",
+    "Shared storage networks, industrial machine queues, energy, full survival balance and arbitrary special item behaviors are outside this release."
+  ]
+}

@@ -31,6 +31,7 @@ namespace SEMC.V2
         static readonly Color Muted = new Color(161, 178, 188);
         readonly string[] icons = new string[TextureNames.Length];
         readonly string[] numbers = new string[TextureNames.Length];
+        readonly ItemIcons catalogIcons;
         readonly Action<string> log;
         bool wasVisible;
         long hintUntil, nextError;
@@ -54,6 +55,7 @@ namespace SEMC.V2
         public Hud(string root, Action<string> logger = null)
         {
             log = logger ?? delegate { };
+            catalogIcons = new ItemIcons(root);
             for (int i = 0; i < TextureNames.Length; i++)
             {
                 // The native GUI texture loader expects DDS. World color/metal maps have the wrong alpha for icons.
@@ -70,7 +72,7 @@ namespace SEMC.V2
 
         public void Draw(GameplayInput input, Snapshot data, bool connected)
         {
-            bool minecraftMenu = BlockPicker.IsOpen || ContainerBridge.IsOpen;
+            bool minecraftMenu = BlockPicker.IsOpen || ContainerBridge.IsOpen || UnifiedInventoryScreen.IsOpen;
             if (minecraftMenu && input != null && input.Enabled && connected && data != null && data.Active)
             {
                 // A Minecraft modal releases gameplay input, but must not reveal the replaced SE toolbar/tutorial.
@@ -114,7 +116,7 @@ namespace SEMC.V2
                     MySimpleObjectRasterizer.Wireframe, 1, .008f, Square, Square, false, -1,
                     MyBillboard.BlendTypeEnum.Standard, 1f, null);
             }
-            if (input.HasPlacement && input.SelectedItem != 20)
+            if (input.HasPlacement && input.SelectedIsBlock)
             {
                 BoundingBoxD placement = new BoundingBoxD((Vector3D)input.PlacementCell + new Vector3D(.004),
                     (Vector3D)input.PlacementCell + new Vector3D(.996));
@@ -141,31 +143,33 @@ namespace SEMC.V2
             Fill(x, y, width, 2 * scale, new Color(91, 154, 140, 210));
             Text("MINECRAFT", x + pad, y + 9 * scale, .51f, Mint);
             Text(input.SelectedItemName, x + pad + 93 * scale, y + 7 * scale, .68f, White);
-            Text(numbers[input.SelectedItem] + " / " + icons.Length, x + width - pad, y + 11 * scale, .49f, Muted,
+            int itemCount=input.ItemCount;
+            Text((input.SelectedItem<0 ? "—" : (input.SelectedItem+1).ToString()) + " / " + itemCount, x + width - pad, y + 11 * scale, .49f, Muted,
                 MyGuiDrawAlignEnum.HORISONTAL_RIGHT_AND_VERTICAL_TOP);
 
-            int first = Math.Max(0, Math.Min(icons.Length - slots, input.SelectedItem - slots / 2));
+            int first = Math.Max(0, Math.Min(itemCount - slots, input.SelectedItem - slots / 2));
             float rowY = y + 37 * scale;
-            for (int j = 0; j < slots; j++)
+            for (int j = 0; j < slots && first+j<itemCount; j++)
             {
                 int item = first + j;
                 float cellX = x + pad + j * (slot + gap);
                 bool selected = item == input.SelectedItem;
                 Fill(cellX, rowY, slot, slot, selected ? new Color(41, 71, 70, 245) : new Color(30, 42, 50, 200));
                 if (selected) Border(cellX, rowY, slot, slot, 2 * scale, Mint);
-                string icon = icons[item];
+                var descriptor=input.ItemDescriptor(item);
+                string icon=descriptor==null ? (item<icons.Length?icons[item]:null) : catalogIcons.Get((string)descriptor["id"]);
                 if (icon != null)
                 {
                     // Unmodified Minecraft textures retain their recognizable pixel art.
                     Sprite(icon, cellX + 9 * scale, rowY + 7 * scale, 32 * scale, 32 * scale, Color.White);
                 }
-                else Text(GameplayInput.ItemNames[item].Substring(0, 1), cellX + slot * .5f, rowY + 8 * scale,
+                else Text(input.ItemName(item).Substring(0, 1), cellX + slot * .5f, rowY + 8 * scale,
                     .8f, White, MyGuiDrawAlignEnum.HORISONTAL_CENTER_AND_VERTICAL_TOP);
-                Text(numbers[item], cellX + 5 * scale, rowY + 35 * scale, .38f, selected ? Mint : Muted);
+                Text((item+1).ToString(), cellX + 5 * scale, rowY + 35 * scale, .38f, selected ? Mint : Muted);
             }
             if (first > 0) Text("<", x + 4 * scale, rowY + 17 * scale, .5f, Muted);
-            if (first + slots < icons.Length) Text(">", x + width - 11 * scale, rowY + 17 * scale, .5f, Muted);
-            string hint = input.SelectedItem == 20 ? "LPM  kop   ·   PPM  podpal   ·   G  paleta   ·   rolka  wybór" : "LPM  kop   ·   PPM  buduj   ·   E  użyj   ·   G  paleta   ·   rolka  wybór";
+            if (first + slots < itemCount) Text(">", x + width - 11 * scale, rowY + 17 * scale, .5f, Muted);
+            string hint = input.SelectedIsBlock ? "LPM  kop   ·   PPM  buduj   ·   E  użyj   ·   G  katalog   ·   I  ekwipunek" : "LPM  kop   ·   PPM  użyj przedmiotu   ·   G  katalog   ·   I  ekwipunek";
             if (BridgeIO.Now() < hintUntil) hint += "   ·   Ctrl+Alt+B  tryb";
             Fill(x, y + height + 5 * scale, width, 25 * scale, new Color(10, 18, 24, 185));
             Text(hint, x + width * .5f, y + height + 9 * scale, .44f, White,

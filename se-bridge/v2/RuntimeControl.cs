@@ -31,6 +31,9 @@ namespace SEMC.V2
         readonly PhysicsWorld physics;
         readonly GameplayInput input;
         readonly Action<string> log;
+        public UnifiedInventory Economy;
+        public Action OpenEconomy;
+        JObject economyResult;
         string lastId, lastAction = "ready", lastResult = "ready", lastError;
         long nextPoll, nextState, commandAt, quitAt;
         long motionUntil, pilotUntil;
@@ -127,6 +130,16 @@ namespace SEMC.V2
             switch (lastAction)
             {
                 case "inspect": return;
+                case "economy":
+                    if(Economy==null)throw new InvalidOperationException("Wspólny ekwipunek jeszcze się ładuje.");
+                    economyResult=Economy.Execute(command);
+                    return;
+                case "openinventory":
+                    RequireOnFoot(character);
+                    if(OpenEconomy==null)throw new InvalidOperationException("Inventory UI unavailable.");
+                    OpenEconomy();return;
+                case "closeinventory":
+                    UnifiedInventoryScreen.Close();return;
                 case "openpicker":
                     RequireOnFoot(character);
                     if (!input.Enabled) throw new InvalidOperationException("Enable Minecraft build mode before opening its palette.");
@@ -902,7 +915,12 @@ namespace SEMC.V2
             value["retainedPhysicsChunks"] = physics.RetainedChunkCount;
             value["cachedPhysicsCells"] = physics.CachedCellCount;
             value["buildMode"] = input.Enabled; value["hudActive"] = input.CanDraw;
+            value["equippedToolType"] = character == null || character.EquippedTool == null ? null : character.EquippedTool.GetType().Name;
             value["selectedItem"] = input.SelectedItem; value["selectedItemName"] = input.SelectedItemName;
+            value["selectedItemId"]=input.SelectedItemId;value["catalogCount"]=input.ItemCount;
+            value["economyBusy"]=Economy!=null&&Economy.Busy;
+            value["inventoryOpen"]=UnifiedInventoryScreen.IsOpen;
+            if(lastAction=="economy" && economyResult!=null)value["economy"]=economyResult;
             value["saving"] = MySession.Static.IsSaveInProgress;
             value["roverStatus"] = roverStatus;
             value["pickerOpen"] = BlockPicker.IsOpen;

@@ -33,6 +33,15 @@ namespace SEMC.V2
         };
         readonly bool[] previousBlocks = new bool[3];
         readonly List<IHitInfo> aimHits = new List<IHitInfo>();
+        readonly SortedDictionary<int,JObject> catalog = new SortedDictionary<int,JObject>();
+        readonly Dictionary<string,int> catalogIds = new Dictionary<string,int>(StringComparer.Ordinal);
+        readonly HashSet<string> ownedItems = new HashSet<string>(StringComparer.Ordinal);
+        string preferredItemId;
+        bool inventoryHeld, previousInventory;
+        public Action OpenInventory;
+        public Action OpenCrafting;
+        public Action<string> RequestSelection;
+        public Func<bool> EconomyBusy;
         const string Preferences = @"C:\Users\konra\Documents\SEMC-Lab\player-preferences-v2.json";
         Snapshot snapshot;
         MatrixD frame;
@@ -44,7 +53,10 @@ namespace SEMC.V2
         public bool CanDraw { get { return enabled && controlsHeld; } }
         public MatrixD Frame { get { return frame; } }
         public int SelectedItem { get; private set; }
-        public string SelectedItemName { get { return ItemNames[SelectedItem]; } }
+        public string SelectedItemName { get { return ItemName(SelectedItem); } }
+        public string SelectedItemId { get { JObject item; return catalog.TryGetValue(SelectedItem,out item) ? (string)item["id"] : preferredItemId; } }
+        public int ItemCount { get { return catalog.Count == 0 ? ItemNames.Length : catalog.Count; } }
+        public bool SelectedIsBlock { get { if(SelectedItem<0)return false; JObject item; return !catalog.TryGetValue(SelectedItem,out item) ? SelectedItem != 20 : ((bool?)item["block"] ?? (bool?)item["placeable"] ?? item["blockStateId"] != null); } }
         public bool HasSelection { get; private set; }
         public bool HasPlacement { get; private set; }
         public Vector3I SelectionCell { get; private set; }
@@ -56,12 +68,15 @@ namespace SEMC.V2
         public GameplayInput(PhysicsWorld physicsWorld, Action<BridgeCommand> commandSink, Action<string> logger)
         {
             physics = physicsWorld; issue = commandSink; log = logger ?? delegate { };
+            SelectedItem=-1;
             try
             {
                 if (File.Exists(Preferences))
                 {
-                    int selected = (int?)JObject.Parse(BridgeIO.ReadSharedText(Preferences))["selectedItem"] ?? 0;
-                    if (selected >= 0 && selected < ItemNames.Length) SelectedItem = selected;
+                    JObject saved = JObject.Parse(BridgeIO.ReadSharedText(Preferences));
+                    int selected = (int?)saved["selectedItem"] ?? 0;
+                    preferredItemId = (string)saved["selectedItemId"];
+                    if (selected >= -1 && selected < ItemNames.Length) SelectedItem = selected;
                 }
             }
             catch (Exception error) { log("PREFERENCES read: " + error.Message); }
@@ -72,24 +87,88 @@ namespace SEMC.V2
             snapshot = data; frame = worldFrame;
         }
 
+        public void SetCatalog(JArray entries)
+        {
+            if(entries == null || entries.Count == 0) return;
+            catalog.Clear(); catalogIds.Clear();
+            foreach(JObject entry in entries)
+            {
+                string id=(string)entry["id"];
+                int index=(int?)entry["index"] ?? (int?)entry["mcIndex"] ?? -1;
+                if(String.IsNullOrEmpty(id) || index<0 || index>100000 || (string)entry["source"]=="se") continue;
+                catalog[index]=entry; catalogIds[id]=index;
+            }
+            int restored;
+            SelectedItem=preferredItemId != null && catalogIds.TryGetValue(preferredItemId,out restored) ? restored : -1;
+        }
+        public void SetOwned(JArray items)
+        {
+            ownedItems.Clear();
+            if(items==null)return;
+            foreach(JObject item in items)
+            {
+                string id=(string)item["id"];
+                if(!String.IsNullOrEmpty(id) && !id.StartsWith("se:",StringComparison.Ordinal) && ((decimal?)item["amount"] ?? (decimal?)item["count"] ?? 0)>0)
+                    ownedItems.Add(id);
+            }
+        }
+        // Native Minecraft is authoritative. Call on a fresh state snapshot or successful
+        // native selection acknowledgement, never when a request is merely submitted.
+        public void SyncNativeSelection(string itemId)
+        {
+            if(itemId!=null && itemId.StartsWith("se:",StringComparison.Ordinal))return;
+            if(String.IsNullOrEmpty(itemId) || itemId=="minecraft:air")itemId=null;
+            int index;
+            int selected=itemId!=null && catalogIds.TryGetValue(itemId,out index) ? index : -1;
+            bool changed=preferredItemId!=itemId || SelectedItem!=selected;
+            preferredItemId=itemId;SelectedItem=selected;
+            if(changed)SaveSelection();
+        }
+        public string ItemName(int index)
+        {
+            if(index<0)return "Pusta dłoń";
+            JObject item;
+            if(catalog.TryGetValue(index,out item)) return (string)item["name"] ?? (string)item["displayName"] ?? (string)item["id"];
+            return index>=0 && index<ItemNames.Length ? ItemNames[index] : "Przedmiot " + index;
+        }
+        public JObject ItemDescriptor(int index)
+        { JObject item; return catalog.TryGetValue(index,out item) ? item : null; }
+        public void SelectById(string id)
+        {
+            int index;
+            if(catalogIds.TryGetValue(id,out index)) { SelectItem(index); return; }
+            if(RequestSelection!=null) RequestSelection(id);
+        }
+
         public void SelectItem(int item)
         {
-            if (item < 0 || item >= ItemNames.Length) throw new ArgumentOutOfRangeException("item");
-            SelectedItem = item;
-            try
+            if (item < 0 || (catalog.Count==0 ? item>=ItemNames.Length : !catalog.ContainsKey(item))) throw new ArgumentOutOfRangeException("item");
+            JObject descriptor;
+            if(RequestSelection != null)
             {
-                string temporary = Preferences + ".tmp";
-                JObject preferences = new JObject(); preferences["version"] = 2; preferences["selectedItem"] = item;
-                File.WriteAllText(temporary, preferences.ToString());
-                if (File.Exists(Preferences)) File.Replace(temporary, Preferences, null); else File.Move(temporary, Preferences);
+                if(catalog.TryGetValue(item,out descriptor))RequestSelection((string)descriptor["id"]);
+                return;
             }
-            catch (Exception error) { log("PREFERENCES save: " + error.Message); }
+            SelectedItem = item;
+            if(catalog.TryGetValue(item,out descriptor))preferredItemId=(string)descriptor["id"];
+            SaveSelection();
             if (snapshot != null && snapshot.Active && MyAPIGateway.Session != null &&
                 MyAPIGateway.Session.Player != null && MyAPIGateway.Session.Player.Character != null)
             {
                 UpdateAim();
                 Send(6, Vector3I.Zero, Vector3I.Up, new Vector3(.5f), "select");
             }
+        }
+        void SaveSelection()
+        {
+            try
+            {
+                string temporary = Preferences + ".tmp";
+                JObject preferences = new JObject(); preferences["version"] = 3; preferences["selectedItem"] = SelectedItem; preferences["selectedItemId"] = preferredItemId;
+                File.WriteAllText(temporary, preferences.ToString());
+                if (File.Exists(Preferences)) File.Replace(temporary, Preferences, null); else File.Move(temporary, Preferences);
+            }
+            catch (Exception error) { log("PREFERENCES save: " + error.Message); }
         }
 
         public void PlayActionFeedback(BridgeCommand command, int result)
@@ -111,7 +190,13 @@ namespace SEMC.V2
         public void HandleInput()
         {
             if (MyInput.Static == null || MyAPIGateway.Session == null || MyAPIGateway.Session.Player == null) return;
-            bool gui = MyAPIGateway.Gui != null && (MyAPIGateway.Gui.IsCursorVisible || MyAPIGateway.Gui.ChatEntryVisible);
+            bool gui = HasOpenMenu();
+            bool onFoot = MyAPIGateway.Session.Player.Character != null && MyAPIGateway.Session.Player.Controller != null &&
+                MyAPIGateway.Session.Player.Controller.ControlledEntity != null &&
+                MyAPIGateway.Session.Player.Controller.ControlledEntity.Entity == MyAPIGateway.Session.Player.Character;
+            bool canOpenInventory = OpenInventory != null && SnapshotFresh(BridgeIO.Now()) && onFoot && !gui && !MyInput.Static.IsAnyShiftKeyPressed();
+            HoldInventoryControl(canOpenInventory);
+            if(canOpenInventory && MyInput.Static.IsNewKeyPressed(MyKeys.I)) { OpenInventory(); return; }
             if (!gui && MyInput.Static.IsAnyCtrlKeyPressed() && MyInput.Static.IsAnyAltKeyPressed() && MyInput.Static.IsNewKeyPressed(MyKeys.B))
                 SetEnabled(!enabled);
             if (!enabled) return;
@@ -142,7 +227,14 @@ namespace SEMC.V2
             int wheel = MyInput.Static.DeltaMouseScrollWheelValue();
             if (wheel != 0)
             {
-                SelectItem((SelectedItem + (wheel > 0 ? 1 : ItemNames.Length - 1)) % ItemNames.Length);
+                var indices=new List<int>();
+                foreach(var entry in catalog)if(ownedItems.Contains((string)entry.Value["id"]))indices.Add(entry.Key);
+                if(indices.Count>0)
+                {
+                    int at=indices.IndexOf(SelectedItem);
+                    int next=at<0 ? (wheel>0?0:indices.Count-1) : (at+(wheel>0?1:indices.Count-1))%indices.Count;
+                    SelectItem(indices[next]);
+                }
                 nextStatus = 0;
             }
             // Number keys provide familiar access to the first nine slots; wheel reaches the full palette.
@@ -177,11 +269,12 @@ namespace SEMC.V2
         {
             if (!ReadyForAction()) return false;
             UpdateAim();
-            // Flint and steel is a native Minecraft use-on-block action (e.g. igniting TNT).
-            if (SelectedItem == 20)
+            if(SelectedItem<0)return TryInteract();
+            // Native items use their own interaction implementation, without per-item branches.
+            if (!SelectedIsBlock)
             {
                 if (!HasSelection) return false;
-                Send(5, SelectionCell, SelectionNormal, HitFractions, "ignite");
+                Send(5, SelectionCell, SelectionNormal, HitFractions, "use-item");
                 nextAction = BridgeIO.Now() + 150;
                 return true;
             }
@@ -208,13 +301,19 @@ namespace SEMC.V2
         bool ReadyForAction()
         {
             long now = BridgeIO.Now();
-            if (!enabled || !SnapshotFresh(now) || now < nextAction) return false;
+            if (!enabled || !SnapshotFresh(now) || now < nextAction || (EconomyBusy!=null && EconomyBusy())) return false;
             if (MyAPIGateway.Session == null || MyAPIGateway.Session.Player == null || MyAPIGateway.Session.Player.Character == null) return false;
-            if (MyAPIGateway.Gui != null && (MyAPIGateway.Gui.IsCursorVisible || MyAPIGateway.Gui.ChatEntryVisible)) return false;
+            if (HasOpenMenu()) return false;
             if (MyAPIGateway.Session.Player.Controller == null || MyAPIGateway.Session.Player.Controller.ControlledEntity == null ||
                 MyAPIGateway.Session.Player.Controller.ControlledEntity.Entity != MyAPIGateway.Session.Player.Character) return false;
             if (MyInput.Static != null) HoldControls();
             return true;
+        }
+
+        static bool HasOpenMenu()
+        {
+            return BlockPicker.IsOpen || ContainerBridge.IsOpen || UnifiedInventoryScreen.IsOpen ||
+                (MyAPIGateway.Gui != null && (MyAPIGateway.Gui.IsCursorVisible || MyAPIGateway.Gui.ChatEntryVisible));
         }
 
         public void UpdateAim()
@@ -282,7 +381,7 @@ namespace SEMC.V2
             float pitch = (float)(-Math.Asin(MathHelper.Clamp(look.Y, -1, 1)) * 180.0 / Math.PI);
             issue(new BridgeCommand {
                 Operation = op, X = snapshot.X + cell.X, Y = snapshot.Y + cell.Y, Z = snapshot.Z + cell.Z,
-                Item = SelectedItem, Face = Face(normal), Flags = 1, HitX = MathHelper.Clamp(hit.X, 0, 1),
+                Item = SelectedItem, Face = Face(normal), Flags = description=="use-item" ? 5 : 1, HitX = MathHelper.Clamp(hit.X, 0, 1),
                 HitY = MathHelper.Clamp(hit.Y, 0, 1), HitZ = MathHelper.Clamp(hit.Z, 0, 1),
                 PlayerX = snapshot.X + localPlayer.X, PlayerY = snapshot.Y + localPlayer.Y, PlayerZ = snapshot.Z + localPlayer.Z,
                 Yaw = yaw, Pitch = pitch, Description = description
@@ -322,6 +421,12 @@ namespace SEMC.V2
             else if (!active && rollHeld)
             { MyInput.Static.SetControlBlock(MyControlsSpace.ROLL_RIGHT, previousRoll); rollHeld = false; }
         }
+        void HoldInventoryControl(bool active)
+        {
+            if(MyInput.Static==null)return;
+            if(active&&!inventoryHeld){previousInventory=MyInput.Static.IsControlBlocked(MyControlsSpace.INVENTORY);MyInput.Static.SetControlBlock(MyControlsSpace.INVENTORY,true);inventoryHeld=true;}
+            else if(!active&&inventoryHeld){MyInput.Static.SetControlBlock(MyControlsSpace.INVENTORY,previousInventory);inventoryHeld=false;}
+        }
         void Status(string text, int duration, bool force = false)
         {
             long now = BridgeIO.Now(); if (!force && now < nextStatus) return;
@@ -340,7 +445,7 @@ namespace SEMC.V2
         public void Dispose()
         {
             try { BlockPicker.Close(this); }
-            finally { ReleaseControls(); enabled = false; }
+            finally { ReleaseControls(); HoldInventoryControl(false); enabled = false; }
         }
     }
 }

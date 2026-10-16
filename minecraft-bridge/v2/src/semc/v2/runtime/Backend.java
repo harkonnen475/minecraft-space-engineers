@@ -96,10 +96,12 @@ public final class Backend implements AutoCloseable {
     Path worldMetadataPath;
     volatile ChunkStream chunkStream;
     String worldToken="";
+    final Economy economy;
 
     public Backend(Path root) throws Exception {
         this.root=root.toAbsolutePath();
         paletteFingerprint=computePaletteFingerprint();
+        economy=new Economy(this);
         SIZE=Files.exists(root.resolve("mc-v2-capture64.flag"))?64:32;COUNT=SIZE*SIZE*SIZE;records=new int[COUNT*3];
         originX=-SIZE/2;originZ=-SIZE/2;originY=240-SIZE/2;
         Files.createDirectories(root);
@@ -231,6 +233,7 @@ public final class Backend implements AutoCloseable {
             try{Files.deleteIfExists(root.resolve("mc-v2-startup.flag"));}catch(Exception failure){fault(failure);}
             log("STARTUP dedicated backend prepared; native world simulation ready");
         }
+        if(valid&&prepared&&Files.exists(root.resolve("enable-v2-edits.flag")))try{economy.tick(server,player,System.currentTimeMillis());}catch(Throwable failure){fault(failure);}
         Command cmd=readCommand();
         if(cmd!=null)execute(server,player,valid,cmd);
         if(!running||quitting)return;
@@ -288,6 +291,7 @@ public final class Backend implements AutoCloseable {
             if(!prepared||!player.gameMode.isCreative()){ack(cmd,-1,"PREPARE_CREATIVE required");return;}
             if(op==11){server.saveEverything(false,true,true);recordSaveCheckpoint(server,"SAVE");saveTerrainOwnership();if(explosionDirty)flushExplosions();ack(cmd,1,"native save complete checkpoint="+saveCheckpoint);nextSnapshot=0;return;}
             if(op==12){saveAndQuit(server,cmd,"SAVE_AND_QUIT command");return;}
+            if(economy.locked()&&op!=9){ack(cmd,-1,"inventory transaction pending");return;}
             if(op==13||op==14){
                 var menu=player.containerMenu;
                 if(menu==player.inventoryMenu||menu.containerId!=cmd.x){ack(cmd,-1,"stale or closed native container");return;}
@@ -297,7 +301,7 @@ public final class Backend implements AutoCloseable {
                 var action=cmd.item==0?net.minecraft.world.inventory.ContainerInput.PICKUP:net.minecraft.world.inventory.ContainerInput.QUICK_MOVE;
                 menu.clicked(cmd.y,cmd.z,action,player);menu.broadcastChanges();ack(cmd,1,"native container click slot="+cmd.y+" action="+action);exportMenu(player);nextSnapshot=0;return;
             }
-            if(op==6){select(player,cmd.item);ack(cmd,1,"selected "+ITEM_NAMES[selectedItem]);return;}
+            if(op==6){select(player,cmd.item);ack(cmd,1,"selected "+economy.itemId(economy.item(selectedItem)));return;}
             if(op==9){
                 applyPose(player,cmd);ack(cmd,1,"pose");return;
             }
@@ -310,7 +314,12 @@ public final class Backend implements AutoCloseable {
             if(retainedBreak&&!level.hasChunkAt(target))level.getChunkAt(target);
             if(!level.hasChunkAt(target)){ack(cmd,-1,"target chunk not loaded");return;}
             Direction face=Direction.from3DDataValue(Math.max(0,Math.min(5,cmd.face)));
-            if(op==1){boolean result=level.getBlockState(target).isAir()||player.gameMode.destroyBlock(target);if(chunkStream!=null)chunkStream.prioritize(target);ack(cmd,result?1:-1,"native break "+target);nextSnapshot=0;return;}
+            if(op==1){
+                BlockState previous=level.getBlockState(target);var drops=player.hasCorrectToolForDrops(previous)?Block.getDrops(previous,level,target,level.getBlockEntity(target),player,player.getMainHandItem()):java.util.List.<ItemStack>of();
+                if(!economy.canReceive(player,drops)){ack(cmd,-1,"shared inventory full");return;}
+                boolean result=previous.isAir()||player.gameMode.destroyBlock(target);if(result&&!previous.isAir())economy.receive(player,drops);
+                if(chunkStream!=null)chunkStream.prioritize(target);ack(cmd,result?1:-1,"native break "+target);nextSnapshot=0;return;
+            }
             float hx=finiteFraction(cmd.hx),hy=finiteFraction(cmd.hy),hz=finiteFraction(cmd.hz);
             BlockHitResult hit=new BlockHitResult(new Vec3(cmd.x+hx,cmd.y+hy,cmd.z+hz),face,target,false);
             if(op==2){
@@ -331,12 +340,15 @@ public final class Backend implements AutoCloseable {
                         return ordered;
                     }
                 };
-                InteractionResult result=blockItem.place(context);
-                ack(cmd,result.consumesAction()?1:-1,"native place "+ITEM_NAMES[selectedItem]+" result="+result+" state="+level.getBlockState(target));
+                int beforeCount=stack.getCount();InteractionResult result=blockItem.place(context);
+                if(result.consumesAction()&&stack.getCount()==beforeCount)stack.shrink(1);
+                player.inventoryMenu.broadcastChanges();
+                ack(cmd,result.consumesAction()?1:-1,"native place "+economy.itemId(economy.item(selectedItem))+" result="+result+" state="+level.getBlockState(target));
             }else{
                 ItemStack interactionStack=ItemStack.EMPTY;
-                if(cmd.item==20){select(player,20);interactionStack=player.getItemInHand(InteractionHand.MAIN_HAND);}
+                if((cmd.flags&4)!=0){select(player,cmd.item);interactionStack=player.getItemInHand(InteractionHand.MAIN_HAND);}
                 InteractionResult result=player.gameMode.useItemOn(player,level,interactionStack,InteractionHand.MAIN_HAND,hit);
+                if((cmd.flags&4)!=0&&!result.consumesAction())result=player.gameMode.useItem(player,level,interactionStack,InteractionHand.MAIN_HAND);
                 ack(cmd,result.consumesAction()?1:-1,"native interact result="+result+" state="+level.getBlockState(target));
             }
             if(chunkStream!=null)chunkStream.prioritize(target);nextSnapshot=0;
@@ -383,11 +395,7 @@ public final class Backend implements AutoCloseable {
     void prepare(ServerPlayer player){
         player.setGameMode(GameType.CREATIVE);player.getAbilities().flying=true;player.onUpdateAbilities();player.setNoGravity(true);
         player.teleportTo(player.level(),0.5,241,0.5,Set.of(),0,0,true);
-        if(player.getInventory().getItem(0).isEmpty())select(player,0);
-        else{
-            String selectedName=BuiltInRegistries.ITEM.getKey(player.getInventory().getItem(0).getItem()).getPath();
-            for(int index=0;index<ITEM_NAMES.length;index++)if(ITEM_NAMES[index].equals(selectedName)){selectedItem=index;break;}
-        }
+        if(!player.getInventory().getSelectedItem().isEmpty())selectedItem=economy.index(player.getInventory().getSelectedItem().getItem());
         prepared=true;nextSnapshot=0;
     }
     void applyPose(ServerPlayer player,Command cmd){
@@ -407,11 +415,7 @@ public final class Backend implements AutoCloseable {
     int streamOrigin(double position,int origin){int margin=SIZE/4;return position<origin+margin||position>=origin+SIZE-margin?(int)Math.floor(position/8)*8-SIZE/2:origin;}
     boolean inside(int x,int y,int z){return x>=originX&&x<originX+SIZE&&y>=originY&&y<originY+SIZE&&z>=originZ&&z<originZ+SIZE;}
     void select(ServerPlayer player,int index){
-        if(index<0||index>=ITEM_NAMES.length)throw new IllegalArgumentException("Unknown item index "+index);
-        Item item=BuiltInRegistries.ITEM.getValue(Identifier.withDefaultNamespace(ITEM_NAMES[index]));
-        if(item==null)throw new IllegalArgumentException("Missing native item "+ITEM_NAMES[index]);
-        selectedItem=index;player.getInventory().setSelectedSlot(0);player.getInventory().setItem(0,new ItemStack(item,index==20?1:64));
-        player.inventoryMenu.broadcastChanges();
+        economy.select(player,index);
     }
 
     void window(Command cmd,boolean hide){
@@ -597,7 +601,7 @@ public final class Backend implements AutoCloseable {
     void writeMetadata(IntegratedServer server,ServerPlayer player){
         publishWorldIdentity(server,player.level());
         JsonObject data=new JsonObject();data.addProperty("version",2);data.addProperty("timestamp",System.currentTimeMillis());
-        data.addProperty("worldFolder",WORLD);data.addProperty("selectedItemIndex",selectedItem);data.addProperty("selectedItem",ITEM_NAMES[selectedItem]);
+        data.addProperty("worldFolder",WORLD);data.addProperty("selectedItemIndex",selectedItem);data.addProperty("selectedItem",economy.itemId(economy.item(selectedItem)));
         data.addProperty("creative",player.gameMode.isCreative());data.addProperty("paused",server.isPaused());
         JsonArray items=new JsonArray();
         for(int slot=0;slot<player.getInventory().getContainerSize();slot++){

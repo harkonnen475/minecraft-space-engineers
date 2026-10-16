@@ -1,5 +1,5 @@
 MINECRAFT × SPACE ENGINEERS — CREATIVE
-Lokalna wersja v2 dla Minecraft Java 26.3 i Space Engineers 1.210.014.
+Lokalna integracja v2 z ekonomią v3 dla Minecraft Java 26.3 i Space Engineers 1.210.014.
 
 START
 Otwórz skrót „Minecraft x Space Engineers” na pulpicie.
@@ -12,15 +12,24 @@ STEROWANIE
 WASD / mysz / Spacja — zwykły ruch postaci SE.
 J — plecak odrzutowy. F — wejście do kokpitu lub wyjście z niego.
 LPM — usuń wskazany blok Minecrafta albo wykop fragment terenu planety/asteroidy SE.
-PPM — postaw wybrany blok; dla krzesiwa: podpal TNT.
+PPM — postaw posiadany blok albo użyj wybranego przedmiotu MC.
 E — użyj dźwigni, skrzyni lub stołu rzemieślniczego.
-G — paleta bloków. Kółko myszy — zmiana wyboru. 1–9 — szybki wybór z pierwszych 9 pozycji palety.
+I — wspólne EQ i wytwarzanie. G — automatyczny katalog z wyszukiwaniem.
+Shift+I — natywny ekwipunek i transfer do schowków SE; G otwiera wspólny katalog w trybie MC.
+Kółko myszy — wybór posiadanych przedmiotów MC. 1–9 — pierwsze pozycje palety, jeśli je posiadasz.
 Ctrl+Alt+B — przełącz budowanie Minecraft / zwykłe narzędzia i budowanie SE.
 W kokpicie działają normalne sterowanie, hamulec i pasek narzędzi SE.
 
-SKRZYNIE I CRAFTING
+SKRZYNIE, WSPÓLNE EQ I CRAFTING
 LPM przenosi stos, PPM dzieli lub odkłada jedną sztukę, Shift+LPM wykonuje szybki transfer.
-Receptury, przedmioty i zawartość skrzyń obsługuje prawdziwy silnik Minecrafta.
+Tak działa menu natywnej skrzyni MC. I pokazuje przedmioty z obu ekwipunków.
+Zakładka Wytwarzanie wyszukuje receptury i pobiera rzeczywiste składniki z obu gier.
+E przy stole MC otwiera ten sam wspólny warsztat. Katalog służy do wyszukiwania,
+a wybór do ręki wymaga posiadania przedmiotu. Narzędzia SE przełączają sterowanie na SE.
+Receptury MC są sprawdzane przez prawdziwy silnik, a receptury SE pochodzą z jego blueprintów.
+Sztabki o zgodnym metalu są wymienne: 1 sztabka MC = 1 kg sztabki SE.
+To jawna reguła tej piaskownicy, nie przeliczenie fizycznej masy przedmiotów MC.
+Przerwana transakcja jest zapisywana i wznawiana po uruchomieniu obu gier.
 Esc lub krzyżyk wraca do świata; przedmiot trzymany kursorem wraca do ekwipunku.
 
 CO JEST POŁĄCZONE
@@ -48,10 +57,16 @@ POTWIERDZONE TESTY
 Sprawdzono chodzenie i jazdę po blokach MC, tłoki, TNT, kopanie, piasek,
 skrzynie i crafting, odległe aktualizacje oraz zapis i ponowny start obu gier.
 Pełne wyniki, pomiary i ograniczenia weryfikacji: qa-live-v2.json.
+Nowe testy katalogu, wspólnego EQ, mieszanych receptur, komponentów i odzyskiwania:
+qa-live-v3.json oraz qa-live-v3-tests.json.
 
 ZAKRES WERSJI
 To instalacja dopasowana do tego komputera i tych wersji gier, w trybie jednoosobowym OFFLINE.
-Paleta obejmuje 29 wybranych bloków/przedmiotów. Ekwipunek MC i surowce SE nie są jednym wspólnym magazynem.
+Katalog automatycznie obejmuje rejestry obu gier; nowe zwykłe bloki i przedmioty nie potrzebują ręcznej listy.
+Wspólny warsztat obsługuje zwykłe receptury MC 3×3 i materialne blueprinty SE.
+Na tym etapie warsztat nie wymaga fizycznego assemblera ani energii; nie zastępuje pełnego survivalu.
+Piece, receptury specjalne i dalsze procesy przemysłowe wymagają adapterów całych rodzin.
+Widoczność w katalogu nie oznacza kompletnej obsługi każdej mechaniki danego przedmiotu.
 Kopanie terenu SE jest funkcją kreatywną i nie przyznaje rudy ani przedmiotów do ekwipunku MC.
 Nie ma jeszcze pełnej obsługi wszystkich mobów, wymiarów Minecrafta, multiplayera ani całej ekonomii survivalowej.
 Ruchome tłoki są próbkowane co 50 ms; bardzo krótki ruch przy opóźnionej klatce może być częściowo pominięty.

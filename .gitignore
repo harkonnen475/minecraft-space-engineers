@@ -2,6 +2,7 @@ tools/
 backups/
 bridge.bin
 *.log
+logs/
 *.flag
 **/bin/
 **/obj/
@@ -37,6 +38,12 @@ minecraft-backend/
 /world-v2.json
 /piston-shape-probe-v2.json
 /player-preferences-v2.json
+
+# Generated registry data, inventory snapshots and durable local transaction journals
+/catalog-*-v3.json
+/recipes-*-v3.json
+/economy-*-v3.json
+/economy-se-v3/
 
 # Machine-specific session state and generated diagnostics
 /cold-start-*.json

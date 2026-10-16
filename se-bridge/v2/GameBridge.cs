@@ -25,6 +25,7 @@ namespace SEMC.V2
         ExplosionBridge explosions;
         TerrainBridge terrain;
         ContainerBridge containers;
+        UnifiedInventory economy;
         RetainedWorldStore worldStore;
         RetainedWorldSnapshot restoreSnapshot;
         RemoteChunks remote;
@@ -38,7 +39,7 @@ namespace SEMC.V2
         bool anchored, applied, requestedHide, disposed;
         int paletteRevision = -1, sx, sy, sz, originX, originY, originZ, rendered;
         ulong lastHash;
-        long startedAt, nextRead, nextLog, nextError, nextHud, nextPose;
+        long startedAt, nextRead, nextLog, nextError, nextHud, nextPose, nextCatalog;
 
         public void Init(object game)
         {
@@ -79,6 +80,12 @@ namespace SEMC.V2
             if (!MyAPIGateway.Session.OnlineMode.ToString().Equals("OFFLINE", StringComparison.OrdinalIgnoreCase)) return;
             string path = MySession.Static.CurrentPath;
             if (!String.Equals(Path.GetFullPath(path).TrimEnd('\\'), World, StringComparison.OrdinalIgnoreCase)) return;
+            if(economy==null) economy=new UnifiedInventory(Root,Log);
+            economy.Update(bridge.Connected);
+            if(gameplay!=null && now>=nextCatalog)
+            { nextCatalog=now+1000; gameplay.SetCatalog(economy.View["catalog"] as JArray); gameplay.SetOwned(economy.View["items"] as JArray); }
+            if(gameplay!=null && !economy.Busy && (bool?)economy.View["connected"]==true)
+                gameplay.SyncNativeSelection((string)economy.View["selectedItemId"]);
             if (now >= nextRead)
             {
                 nextRead = now + 100;
@@ -112,9 +119,11 @@ namespace SEMC.V2
                         gameplay = new GameplayInput(physics, Issue, Log);
                         gameplay.Enabled = true;
                         control = new RuntimeControl(physics, gameplay, Log);
+                        ConfigureEconomy();
                         if (explosions == null) explosions = new ExplosionBridge(Root, Log);
                         if (terrain == null) terrain = new TerrainBridge(Root, Log);
                         if (containers == null) containers = new ContainerBridge(Root, Issue, Log);
+                        ConfigureContainers();
                         if (hud != null) hud.Dispose(); hud = new Hud(Root, Log);
                         applied = false;
                     }
@@ -232,8 +241,10 @@ namespace SEMC.V2
             movingPhysics = new MovingBlockPhysics(Root, Log);
             gameplay = new GameplayInput(physics, Issue, Log); gameplay.Enabled = true;
             control = new RuntimeControl(physics, gameplay, Log);
+            ConfigureEconomy();
             explosions = new ExplosionBridge(Root, Log); terrain = new TerrainBridge(Root, Log);
             containers = new ContainerBridge(Root, Issue, Log); hud = new Hud(Root, Log);
+            ConfigureContainers();
             anchored = true; worldStore = store; rendered = renderer.RenderedCells;
             Log("CACHE offline support restored cells=" + rendered);
         }
@@ -242,6 +253,48 @@ namespace SEMC.V2
             if (disposed || gameplay == null) return;
             try { gameplay.HandleInput(); }
             catch (Exception error) { if (BridgeIO.Now() >= nextError) { Log("INPUT ERROR " + error); nextError = BridgeIO.Now() + 3000; } }
+        }
+
+        void ConfigureEconomy()
+        {
+            if(economy==null) economy=new UnifiedInventory(Root,Log);
+            gameplay.SetCatalog(economy.View["catalog"] as JArray);
+            gameplay.RequestSelection=delegate(string id) { economy.Select(id); };
+            economy.SelectionConfirmed=delegate(string id) {
+                if(gameplay==null)return;
+                bool nativeSE=id!=null && id.StartsWith("se:",StringComparison.Ordinal);
+                if(!nativeSE) gameplay.SyncNativeSelection(id);
+                gameplay.Enabled=!nativeSE;
+            };
+            gameplay.EconomyBusy=delegate { return economy==null || economy.Busy; };
+            gameplay.OpenInventory=delegate { OpenEconomy(false); };
+            gameplay.OpenCrafting=delegate { OpenEconomy(false); };
+            control.Economy=economy;
+            control.OpenEconomy=delegate { OpenEconomy(false); };
+            BlockPicker.Configure(delegate { return economy.View; },SelectCatalogItem,CraftCatalogRecipe);
+        }
+        void SelectCatalogItem(string id)
+        {
+            if(id!=null && (id.StartsWith("se:",StringComparison.Ordinal) || id.StartsWith("stack:",StringComparison.Ordinal))) { if(economy!=null)economy.Select(id); }
+            else if(gameplay!=null) gameplay.SelectById(id);
+        }
+        void ConfigureContainers()
+        {
+            containers.EconomyBusy=delegate { return economy==null || economy.Busy; };
+            containers.OpenUnifiedCrafting=delegate {
+                if(economy!=null) UnifiedInventoryScreen.OpenCrafting(Root,delegate{return economy.View;},SelectCatalogItem,CraftCatalogRecipe,Log);
+            };
+        }
+        void CraftCatalogRecipe(string id,int amount)
+        {
+            if(economy==null)return;
+            string status=economy.Craft(id,amount);
+            if(!String.IsNullOrEmpty(status))MyAPIGateway.Utilities.ShowNotification(status,2500,"White");
+        }
+        void OpenEconomy(bool catalogOnly)
+        {
+            if(economy==null)return;
+            UnifiedInventoryScreen.Open(Root,delegate{return economy.View;},SelectCatalogItem,CraftCatalogRecipe,Log,catalogOnly);
         }
 
         void LoadPalette(int revision)
@@ -341,6 +394,8 @@ namespace SEMC.V2
             SafeDispose(renderer); renderer = null;
             SafeDispose(hud); hud = null;
             SafeDispose(containers); containers = null;
+            UnifiedInventoryScreen.Close();
+            SafeDispose(economy); economy=null;
             SafeDispose(remote); remote = null;
             SafeDispose(movingPhysics); movingPhysics = null; lastMovingBodies = 0;
             applied = anchored = requestedHide = false; rendered = 0;

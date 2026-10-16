@@ -1,0 +1,76 @@
+{
+  "timestampUtc": "2026-10-16T04:13:20.9676905Z",
+  "tests": [
+    {
+      "name": "World and transaction preconditions",
+      "measurements": {
+        "noPendingTransaction": true,
+        "clonedWorldGuard": true
+      },
+      "status": "passed"
+    },
+    {
+      "name": "Mixed Minecraft and Space Engineers iron produces one bucket",
+      "measurements": {
+        "spaceEngineersInputs": 1,
+        "outputs": 1,
+        "minecraftInputs": 2
+      },
+      "status": "passed"
+    },
+    {
+      "name": "Three automatically discovered cherry logs produce twelve planks",
+      "measurements": {
+        "inputs": 3,
+        "outputs": 12
+      },
+      "status": "passed"
+    },
+    {
+      "name": "Fragmented component-bearing stacks craft one batch",
+      "measurements": {
+        "componentsPreservedUntilConsumption": true,
+        "separateSourceStacks": 2,
+        "outputs": 18
+      },
+      "status": "passed"
+    },
+    {
+      "name": "Escrow abort preserves enchanted tools and nested container contents",
+      "measurements": {
+        "tools": 1,
+        "nestedContainers": 1,
+        "exactStackHashesRestored": true
+      },
+      "status": "passed"
+    },
+    {
+      "name": "Repeated creative grant request does not duplicate items",
+      "measurements": {
+        "requests": 2,
+        "grantedItems": 2
+      },
+      "status": "passed"
+    },
+    {
+      "name": "Repeated prepare and commit receipts do not consume or produce twice",
+      "measurements": {
+        "commitCalls": 2,
+        "consumed": 1,
+        "produced": 1,
+        "prepareCalls": 2
+      },
+      "status": "passed"
+    },
+    {
+      "name": "Insufficient-material crafting leaves both inventories unchanged",
+      "measurements": {
+        "inventoryChanges": 0
+      },
+      "status": "passed"
+    }
+  ],
+  "passed": true,
+  "version": 3,
+  "scope": "Local cloned worlds; diagnostic supplies retained; no inventory resets"
+}

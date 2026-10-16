@@ -16,6 +16,8 @@ namespace SEMC.V2
     public sealed class ContainerBridge : IDisposable
     {
         public static bool IsOpen { get; private set; }
+        public Action OpenUnifiedCrafting { get; set; }
+        public Func<bool> EconomyBusy { get; set; }
         readonly string path;
         readonly Action<BridgeCommand> issue;
         readonly Action<string> log;
@@ -24,23 +26,45 @@ namespace SEMC.V2
         long nextRead, nextCloseAttempt;
         int closedContainer = -1;
         bool disposing;
+        bool pendingCrafting;
         public ContainerBridge(string root, Action<BridgeCommand> send, Action<string> logger)
         { path=Path.Combine(root,"menu-v2.json"); issue=send;log=logger;icons=new ItemIcons(root); }
         public void Update(bool connected)
         {
             if (BridgeIO.Now() < nextRead) return;
             nextRead = BridgeIO.Now()+100;
-            if (!connected) { ResetCloseRequest(); CloseRemote(); return; }
+            if (!connected) { pendingCrafting=false;ResetCloseRequest(); CloseRemote(); return; }
             if (!File.Exists(path)) { CloseRemote(); return; }
             JObject menu;
             try { menu=JObject.Parse(BridgeIO.ReadSharedText(path)); }
             catch(IOException){return;}catch(Newtonsoft.Json.JsonException){return;}
             bool open=(bool?)menu["open"]??false;
             long timestamp=(long?)menu["timestamp"]??0, now=BridgeIO.Now();
-            if (!open || timestamp<=0 || timestamp>now+1000 || now-timestamp>3000) { ResetCloseRequest();CloseRemote();return; }
+            if (timestamp<=0 || timestamp>now+1000 || now-timestamp>3000)
+            { pendingCrafting=false;ResetCloseRequest();CloseRemote();return; }
+            if (!open)
+            {
+                ResetCloseRequest();CloseRemote();
+                IsOpen=pendingCrafting;
+                // Open only after the native menu has acknowledged closing, so there
+                // is never a hidden Minecraft crafting cursor holding ingredients.
+                if(pendingCrafting && (EconomyBusy==null || !EconomyBusy()))
+                {
+                    pendingCrafting=false;IsOpen=false;
+                    if(OpenUnifiedCrafting!=null)OpenUnifiedCrafting();
+                }
+                return;
+            }
             int id=(int?)menu["containerId"]??0;
             if(id==closedContainer) { RetryClose(now); return; }
             ResetCloseRequest();
+            string type=(string)menu["type"]??"";
+            if(OpenUnifiedCrafting!=null && (type=="minecraft:crafting" || type=="crafting"))
+            {
+                CloseRemote();pendingCrafting=true;IsOpen=true;closedContainer=id;nextCloseAttempt=0;
+                RetryClose(now);return;
+            }
+            pendingCrafting=false;
             if(screen==null || screen.ContainerId!=id)
             {
                 CloseRemote();
@@ -76,10 +100,11 @@ namespace SEMC.V2
         }
         void CloseRemote()
         {
+            IsOpen=false;
             ContainerScreen current=screen;if(current==null)return;
             screen=null;IsOpen=false;current.Closed-=OnClosed;current.CloseScreenNow();
         }
-        public void Dispose(){disposing=true;ResetCloseRequest();CloseRemote();}
+        public void Dispose(){disposing=true;pendingCrafting=false;ResetCloseRequest();CloseRemote();}
 
         sealed class ContainerScreen:MyGuiScreenBase
         {
