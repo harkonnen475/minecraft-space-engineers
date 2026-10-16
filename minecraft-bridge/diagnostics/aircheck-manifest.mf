@@ -1,0 +1,5 @@
+Manifest-Version: 1.0
+Agent-Class: semc.diagnostics.AirCheckAgent
+Can-Redefine-Classes: false
+Can-Retransform-Classes: false
+

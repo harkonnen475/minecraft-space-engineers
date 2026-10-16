@@ -1,0 +1,6 @@
+Manifest-Version: 1.0
+Agent-Class: semc.v2.AgentTnt
+Premain-Class: semc.v2.AgentTnt
+Can-Redefine-Classes: false
+Can-Retransform-Classes: true
+

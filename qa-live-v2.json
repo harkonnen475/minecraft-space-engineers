@@ -1,0 +1,157 @@
+{
+  "version": 2,
+  "recordedAt": "2026-10-16T00:55:32.4762655+02:00",
+  "environment": "Minecraft Java 26.3; SE 1.210.014; local offline cloned creative worlds",
+  "verified": [
+    {
+      "test": "Native GUI crafting",
+      "evidence": "Real SE mouse clicks: carried63 oak logs, right-click placed1 into native recipe, native result4 planks; taking result consumed1 log. Remaining62 logs and4 additional planks returned on close.",
+      "utc": "2026-10-15T21:54"
+    },
+    {
+      "test": "Native GUI chest",
+      "evidence": "SE clicks picked64 dirt from native inventory and deposited into real chest slot0; native carried item empty."
+    },
+    {
+      "test": "Palette GUI",
+      "evidence": "29 readable native buttons, local Minecraft icons; actual click selected flint-and-steel item20."
+    },
+    {
+      "test": "Native walking",
+      "evidence": "Bounded native movement interception, no teleport/velocity forcing; player walked from(-8,239.98,-8.4) to(-7.999,239.33,-3.64), speed3.27m/s, health1.",
+      "utc": "2026-10-15T22:00"
+    },
+    {
+      "test": "Native rover controls",
+      "evidence": "Native cockpit boarding succeeded. Native drive moved cockpit from(-7.11,240.48,-1.40) to(-7.09,240.32,-2.14); stock cockpit toolbar restored; exit succeeded."
+    },
+    {
+      "test": "Retained remote updates",
+      "evidence": "Player at(60,251,0), active origin(24,208,-32), active nonair0. Direct native MC break at(-13,244,-13) reached separate chunk stream; SE renderer+physics retained count448→447. Return and native placement restored448.",
+      "utc": "2026-10-15T21:59:30"
+    },
+    {
+      "test": "Disk cache hot reload",
+      "evidence": "Checksum/identity-bound cache restored8 chunks448cells and64colliders before fresh capture; native meshes rebuilt.",
+      "utc": "2026-10-15T21:58:14"
+    },
+    {
+      "test": "Balanced TNT to SE",
+      "evidence": "Native TNT event1792101656699001 at(16.3293,248.0613,16.3909), radius4, nativeSEacceptedtrue, StrengthImpulse1. Test heavy armor grid27→23 blocks; local terrain height248→244. Test grid removed afterward; player health1.",
+      "utc": "2026-10-15T22:02:33"
+    },
+    {
+      "test": "Backend cold restart",
+      "evidence": "Native SAVE_AND_QUIT, closed clone copied to isolated backend, managed process22584 started and hid automatically; 448 garage blocks and lit lamp retained; SE reconnected."
+    },
+    {
+      "test": "Native stair ascent",
+      "evidence": "SEcharacter walked from(-8,240,-2) across slab239.5 and native convex stair ramp to(-8.097,239.982,-10.491) inside garage in2.3s; health1; no movement teleport/velocity assignment.",
+      "utc": "2026-10-15T22:11:50"
+    },
+    {
+      "test": "Native piston pushes SE armor",
+      "evidence": "Native MCwestpiston+wood stroke drove nativeHavokkinematic bodies. Bodycount3→0 and26nativecontacts. SE27heavyarmorgrid moved x6→-3.927 in~.8s, vx-15.6m/s, unchanged27blocks. Testgrid/platform removed after test.",
+      "utc": "2026-10-15T22:14:24"
+    },
+    {
+      "test": "Native rover sustained reverse",
+      "evidence": "Actual native reverse driving moved the rover approximately 23 metres. shipMotionOverrides reached 436 during the bounded drive test. Movement used native ship control input, not grid teleportation or direct velocity assignment. Cockpit boarding, exit and the stock toolbar were also tested."
+    },
+    {
+      "test": "Falling sand rendered and settled",
+      "evidence": "Space Engineers created native render actor6752 for minecraft:falling_block cd87c84d-cc9c-4493-a9bc-02f09c81b8e3, native sand state121. Falling sand was visually rendered, settled as a real MC block and was removed after the test. Separate native trace captured22 falling samples from Y254.96 to245.42, with velocity and AABB, followed by settled sand at(10,245,10) and cleanup.",
+      "utc": "2026-10-15T22:17:17",
+      "artifacts": [
+        "se-v2.log",
+        "research-mc/falling-sand-live-trace-v2.json"
+      ]
+    },
+    {
+      "test": "Offline retained-cache restore",
+      "evidence": "Native MC SAVE11 and QUIT12 completed and process22584 exited. SE hot reload read a stale main snapshot aged13.5s, restored8 retained chunks with463 cells and74 colliders from disk. Character at(-8.17,239.9825,-10.23) had groundHits MinecraftCollider=true atY240.01. This verifies retained native SE support without a fresh MC capture.",
+      "utc": "2026-10-15T22:23:33"
+    },
+    {
+      "test": "Product launcher warm SE cold Minecraft",
+      "evidence": "Actual Minecraft x Space Engineers.exe started cold native Minecraft as process19408, prepared and hid it in10.7s, and reused the already-running integrated SE process3860. Persistent world UUID was unchanged and explicit saveCheckpoint2 survived restart. This covers cold Minecraft with warm SE; full cold start of both games is separate."
+    },
+    {
+      "test": "Continuous native SE terrain excavation",
+      "evidence": "Four native TryPrimary actions cut the actual SE voxel surface. Fresh ray-hit Y progressed240.570→239.444→238.345→237.414→236.312. TerrainBridge column(5,-2) updated to236. Native MC sand placed at(5,243,-2) fell and settled at(5,236,-2), then was removed. The physical pit was visually verified. Creative excavation only; no ore/item yield or unified survival inventory.",
+      "utc": "2026-10-15T22:37:58Z",
+      "mechanism": "Native IMyVoxelMaps.CutOutShape;1.8m oriented box centred0.4m inside fresh surface hit",
+      "endUtc": "2026-10-15T22:38:02Z"
+    },
+    {
+      "test": "Native GUI chest after backend restart",
+      "evidence": "After cold Minecraft restart, SE opened native containerId1. The native chest/inventory view retained64 dirt,8 oak planks and62 oak logs. Actual SE close-button click closed the native menu: open=false and carried=minecraft:air.",
+      "utc": "2026-10-15T22:37"
+    },
+    {
+      "test": "Clean building HUD",
+      "evidence": "Live MC building view removed overlapping native builder icons while retaining ordinary SE player statistics."
+    },
+    {
+      "test": "Managed backend follows native SE shutdown",
+      "evidence": "Native SE quit at22:42:29UTC ended process3860. With its heartbeat stale and matching host process gone, the managed MC watchdog saved and gracefully quit process19408 at22:42:47UTC. No forced process termination.",
+      "utc": "2026-10-15T22:42:29Z",
+      "endUtc": "2026-10-15T22:42:47Z"
+    },
+    {
+      "test": "Full cold product launcher restart",
+      "evidence": "Both game engines were stopped. Actual product EXE launched22:43:13UTC; MC process18188 prepared and hidden22:43:25, SE process21360 started22:43:25, automatic world load22:43:47, world ready22:44:06 (~53s total). Same MC world UUID and saveCheckpoint4 survived. Restored8 chunks448 cells45 colliders; lamp(-8,244,-6) remained lit; excavated terrain column(5,-2) remained236. Rover entity137735440829215736 retained112 blocks and1MWh battery. Before[-6.41232,241.96047,-7.36922], after[-6.41178,241.95995,-7.35172], about1.75cm settling. Character remained supported on MC floor atY239.98243. Verification uses native engine data; visual capture limitation recorded separately.",
+      "utc": "2026-10-15T22:43:13Z",
+      "endUtc": "2026-10-15T22:44:06Z",
+      "artifacts": [
+        "cold-start-before.json",
+        "cold-start-after.json",
+        "backend-launch-v2.log",
+        "mc-v2.log",
+        "se-v2.log"
+      ]
+    },
+    {
+      "test": "Native rover drives into Minecraft garage",
+      "evidence": "Native SE wheel driving moved the rover from outside atMCz4.5 onto the Minecraft garage floor atMCz-7.37, around8km/h. It used the native SE steel ramp and the7m-wide,4m-high opening. Garage remained448 native MC blocks; rover was parked on MC floor.",
+      "utc": "2026-10-15T22:41"
+    },
+    {
+      "test": "Repeat full cold start and final creative settings",
+      "utc": "2026-10-15T22:48:39Z",
+      "endUtc": "2026-10-15T22:49:24Z",
+      "evidence": "Second complete stop and product EXE cold start: managed Minecraft process14416 hidden, SE process10284 autoloaded world in45s. Retained448 garage blocks,8 chunks,45 colliders and112-block parked rover. Chest64dirt survived first full cold restart. Final native saves completed; Sandbox.sbc and Sandbox_config.sbc both retain world display name Minecraft x Space Engineers, Creative mode, FoodConsumptionRate0. Native health1/food1 remained stable for more than5min after start. Rover parked with handbrake, battery1MWh. No scripted movement active.",
+      "artifacts": [
+        "release-state-before.json",
+        "release-state-after.json"
+      ]
+    }
+  ],
+  "pending": [],
+  "scope": {
+    "mode": "Local offline single-player creative sandbox",
+    "visibleGame": "Space Engineers; native Minecraft backend hidden",
+    "paletteItems": 29,
+    "notImplemented": [
+      "Multiplayer",
+      "Complete survival progression and unified MC/SE inventory economy",
+      "All Minecraft mobs and dimensions"
+    ],
+    "dynamicMotionLimit": "50ms latest-state piston sampling can miss part of a short stroke during delayed host frames",
+    "terrainExcavation": "Creative native SE voxel cuts; no ore yield or shared MC/SE survival inventory"
+  },
+  "pendingDetails": {},
+  "verificationLimits": [
+    {
+      "test": "Post-cold-start visual capture",
+      "status": "Capture unavailable after two attempts",
+      "toolError": "foreground window did not report a process id",
+      "evidenceScope": "Full scene visually verified before native shutdown. Post-cold restart persistence, physics support, lamp, terrain and rover verified directly from native engine data; no post-cold screenshot claimed."
+    },
+    {
+      "test": "Transient entity-publication file contention",
+      "status": "Recovers on next publication; locking process not identified",
+      "evidenceScope": "Repeated Windows AccessDenied during atomic replacement of entities-v2.json is caught without terminating the scheduler; last valid file remains available. All known production readers allow FileShare.Delete. A12s read-only measurement including an error at2026-10-15T22:54:36Z observed239 unique samples (~20Hz),725 successful reads, maximum data age112ms and maximum timestamp gap112ms; no gaps over200ms. This bounds the measured interval only."
+    }
+  ]
+}

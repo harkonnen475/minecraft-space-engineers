@@ -1,0 +1,52 @@
+Minecraft assets used by this local bridge
+
+Source: the user's locally installed Minecraft Java Edition 26.3 client archive:
+%APPDATA%\.minecraft\versions\26.3\26.3.jar
+
+prepare-assets.ps1 extracts vanilla blockstate JSON, block model JSON, block PNG
+textures and chest entity PNG textures. It does not download assets or modify
+the installed game. prepare-icons.ps1 extracts the flint-and-steel item texture
+and oak-door item textures and converts local PNGs to alpha-preserving DDS files
+for the SE HUD. research-se\generate-thumbnails.ps1 renders the eight added block
+palette entries and the chest from their actual Minecraft model geometry into local HUD icons.
+
+The renderer resolves model inheritance and blockstate variants from those JSON
+files. It converts local textures to native SE color, normal, extension and
+alpha-mask DDS files on demand. Enlarging pixels uses nearest sampling.
+These derived textures remain Minecraft artwork; conversion does not make them
+original bridge assets or grant additional redistribution rights.
+
+Minecraft artwork belongs to its respective owners, including Mojang/Microsoft.
+This project supplies extraction and conversion code, not a license to that
+artwork. Keep the extracted and converted asset directories local. Do not bundle
+or publish minecraft/, se/ or icons/ when sharing the bridge source. Recipients
+should regenerate those directories from their own installed copy.
+
+Reproduce on this computer (Windows PowerShell 5.1):
+  powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\render-assets\prepare-assets.ps1
+  powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\render-assets\prepare-icons.ps1
+
+The first script accepts -MinecraftJar with an explicit client JAR path. Model
+compatibility is tested against the installed 26.3 assets, not arbitrary packs.
+Optional local audit:
+  powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\research-se\audit-render-assets.ps1
+
+Current rendering limits: animated PNG strips use their first frame; glass uses
+depth-tested alpha cutout by default. A local render-transparency.flag enables
+the native GLASS/OIT material path after a runtime reload. Glass has passed a
+live stability and visual check on this installed engine; water remains untested
+in the live world. Liquid surfaces follow
+native level heights and stacked neighbors, but corner slopes are not reproduced.
+Chest models are closed until native lid-animation state is exported.
+
+Observed nonempty absolute chunks and their lights remain in session memory when
+the capture window moves. Previously seen cells outside the window preserve their
+last observed state until revisited. Accepted Minecraft break commands also remove
+their cached cells immediately. Redstone and other remote changes need recapture.
+The host can persist this source cache through RetainedWorldStore. Restore is bound
+to the Minecraft world's stable UUID, dimension, full state-registry fingerprint,
+Minecraft version, SE save path and exact mapping frame. The binary file carries a
+checksum and is replaced atomically after a short debounce. It restores both mesh
+sources and collision sources before the fresh capture overwrites observed cells.
+It remains a last-observed cache, not an independent or authoritative world save.
+Generated world-cache/ files stay local and are excluded from source distribution.

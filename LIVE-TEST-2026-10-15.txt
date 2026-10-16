@@ -1,0 +1,27 @@
+SEMC Lab — local live test, 2026-10-15 (timestamps below UTC)
+
+Environment: Minecraft Java 26.3 / bundled Microsoft JDK 25.0.1,
+Space Engineers 1.210.014 / Pulsar Legacy 2.4.3 / .NET Framework.
+SE save: SEMC Lab - Bridge Test, cloned offline creative test world.
+
+20:37:54 — plugin created 210-block native small grid. Physics enabled, static.
+20:37:56 — native physics raycast hit this exact grid entity, match=True.
+20:40:27 — MC server acknowledged gold insertion at (86,79,53), command1 result1.
+20:40:51 — after MC resume, SE applied DIFF changes=1, solid=211.
+Visual check: gold cube visible in MC and yellow armor cube visible in SE.
+20:41:17 — MC server acknowledged removal, command2 result1.
+20:41:23 — after MC resume, SE applied DIFF changes=1, solid=210.
+The test cell was verified as actual air beforehand, and restored to air.
+enable-edits.flag removed after test. Further bridge edits are disabled.
+
+20:42:53 — panel's Minecraft recenter command3 acknowledged, result1.
+20:43:03 — panel's SE reposition button recreated the preview grid.
+20:43:05 — native physics raycast again matched the recreated grid entity.
+Panel showed 210 MC solid blocks and 210 SE blocks; both heartbeats fresh.
+
+Validated: shared mapped-memory communication, native visible SE geometry,
+native collision query, live add/remove updates, both recenter controls.
+Not validated: walking on the grid, vehicle impact, cold-start panel workflow,
+agent reattachment after game restart, multiplayer, saves across game upgrades.
+Not implemented: MC textures, merged character/camera, reverse SE edits,
+shared inventory, streaming beyond the fixed patch, moving ship integration.

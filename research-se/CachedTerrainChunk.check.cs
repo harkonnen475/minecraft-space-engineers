@@ -1,0 +1,1 @@
+namespace SEMC.V2 { public sealed class CachedTerrainChunk { public VRageMath.Vector3I Minimum; public int[] States,Colors,Flags; } }
